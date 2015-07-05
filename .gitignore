@@ -39,3 +39,6 @@ Thumbs.db
 *.xml
 *.iml
 *.name
+
+src/src.iml
+.idea/libraries/slick.xml
