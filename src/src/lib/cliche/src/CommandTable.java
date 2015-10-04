@@ -5,6 +5,8 @@
 
 package lib.cliche.src;
 
+import code.hack.src.util.Fn;
+
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -19,7 +21,8 @@ import java.util.List;
 public class CommandTable
 {
 
-  private List<ShellCommand> commandTable = new ArrayList<ShellCommand>();
+  private List<ShellCommand> userCommandTable = new ArrayList<>();
+  private List<ShellCommand> superCommandTable = new ArrayList<>();
   private CommandNamer namer;
 
   public CommandNamer getNamer()
@@ -32,15 +35,53 @@ public class CommandTable
     this.namer = namer;
   }
 
-  public List<ShellCommand> getCommandTable()
+  public List<ShellCommand> getUserCommandTable()
   {
-    return Collections.unmodifiableList( commandTable );
+    return Collections.unmodifiableList( userCommandTable );
   }
 
   public void addMethod( Method method, Object handler, String prefix )
   {
+    final Command annotation = method.getAnnotation( Command.class );
+    if ( annotation != null && annotation.visible() )
+    {
+      userCommandTable.add( buildCommand( method, handler, prefix ) );
+    }
+    else
+    {
+      superCommandTable.add( buildCommand( method, handler, prefix ) );
+    }
+  }
+
+  public void removeMethod( final Method method )
+  {
+    String tokens = method.getName();
+
+    for ( Object o : method.getParameterTypes() )
+    {
+      tokens = tokens + Fn.SPACE + "DUMMY_STRING";
+    }
+
+    try
+    {
+      if ( method.getAnnotation( Command.class ).visible() )
+      {
+        userCommandTable.remove( lookupCommand( method.getName(), Token.tokenize( tokens ) ) );
+      }
+      else
+      {
+        superCommandTable.remove( lookupCommand( method.getName(), Token.tokenize( tokens ), true ) );
+      }
+    }
+    catch ( CLIException e )
+    {
+      //The command wasn't there
+    }
+  }
+
+  private ShellCommand buildCommand( final Method method, final Object handler, final String prefix )
+  {
     Command annotation = method.getAnnotation( Command.class );
-    assert method != null;
     String name;
     String autoAbbrev = null;
 
@@ -80,14 +121,12 @@ public class CommandTable
     {
       command.setHeader( annotation.header() );
     }
-
-    commandTable.add( command );
-
+    return command;
   }
 
   private boolean doesCommandExist( String commandName, int arity )
   {
-    for ( ShellCommand cmd : commandTable )
+    for ( ShellCommand cmd : userCommandTable )
     {
       if ( cmd.canBeDenotedBy( commandName ) && cmd.getArity() == arity )
       {
@@ -98,25 +137,42 @@ public class CommandTable
   }
 
 
-  public List<ShellCommand> commandsByName( String discriminator )
+  public List<ShellCommand> commandsByName( String discriminator, final boolean superCommands )
   {
-    List<ShellCommand> collectedTable = new ArrayList<ShellCommand>();
+    List<ShellCommand> collectedTable = new ArrayList<>();
     // collection
-    for ( ShellCommand cs : commandTable )
+    for ( ShellCommand cs : userCommandTable )
     {
       if ( cs.canBeDenotedBy( discriminator ) )
       {
         collectedTable.add( cs );
       }
     }
+
+    if ( superCommands )
+    {
+      for ( ShellCommand cs : superCommandTable )
+      {
+        if ( cs.canBeDenotedBy( discriminator ) )
+        {
+          collectedTable.add( cs );
+        }
+      }
+    }
     return collectedTable;
   }
 
-  public ShellCommand lookupCommand( String discriminator, List<Token> tokens ) throws CLIException
+  public ShellCommand lookupCommand( final String discriminator, List<Token> tokens ) throws CLIException
   {
-    List<ShellCommand> collectedTable = commandsByName( discriminator );
+    return lookupCommand( discriminator, tokens, false );
+  }
+
+  public ShellCommand lookupCommand( String discriminator, List<Token> tokens, final boolean superCommands ) throws
+          CLIException
+  {
+    List<ShellCommand> collectedTable = commandsByName( discriminator, superCommands );
     // reduction
-    List<ShellCommand> reducedTable = new ArrayList<ShellCommand>();
+    List<ShellCommand> reducedTable = new ArrayList<>();
     for ( ShellCommand cs : collectedTable )
     {
       if ( cs.getMethod().getParameterTypes().length == tokens.size() - 1
@@ -144,6 +200,8 @@ public class CommandTable
       return reducedTable.get( 0 );
     }
   }
+
+
 
 
 }

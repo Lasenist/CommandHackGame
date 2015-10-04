@@ -18,4 +18,5 @@ public interface Input
 
   String readCommand( List<String> path );
 
+  String readCommand( List<String> path, boolean showPrompt );
 }

@@ -1,0 +1,1 @@
+java -jar CommandHack.jar true

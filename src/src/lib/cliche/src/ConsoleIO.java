@@ -5,6 +5,7 @@
 
 package lib.cliche.src;
 
+import code.hack.src.util.Fn;
 import lib.cliche.src.util.Strings;
 
 import java.io.*;
@@ -41,11 +42,16 @@ public class ConsoleIO implements Input, Output, ShellManageable
 
   private int lastCommandOffset = 0;
 
-  public String readCommand( List<String> path )
+  public String readCommand( final List<String> path )
+  {
+    return readCommand( path, true );
+  }
+
+  public String readCommand( List<String> path, final boolean showPrompt )
   {
     try
     {
-      String prompt = Strings.joinStrings( path, false, '/' );
+      String prompt = showPrompt ? Strings.joinStrings( path, false, '/' ) + ">" : Fn.EMPTY_STRING;
       switch ( inputState )
       {
         case USER:
@@ -176,11 +182,7 @@ public class ConsoleIO implements Input, Output, ShellManageable
     {
       return;
     }
-
-    if ( obj != null )
-    {
-      obj = oce.convertOutput( obj );
-    }
+    obj = oce.convertOutput( obj );
 
     for ( int i = 0; i < indent; i++ )
     {

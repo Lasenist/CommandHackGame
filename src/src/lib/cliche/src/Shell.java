@@ -12,6 +12,8 @@
 
 package lib.cliche.src;
 
+import code.hack.src.network.manager.Session;
+import code.hack.src.util.Fn;
 import lib.cliche.src.util.ArrayHashMultiMap;
 import lib.cliche.src.util.MultiMap;
 
@@ -37,6 +39,8 @@ public class Shell
   private Input input;
   private String appName;
 
+  private Session session;
+
   public static class Settings
   {
     private final Input input;
@@ -54,7 +58,7 @@ public class Shell
 
     public Settings createWithAddedAuxHandlers( MultiMap<String, Object> addAuxHandlers )
     {
-      MultiMap<String, Object> allAuxHandlers = new ArrayHashMultiMap<String, Object>( auxHandlers );
+      MultiMap<String, Object> allAuxHandlers = new ArrayHashMultiMap<>( auxHandlers );
       allAuxHandlers.putAll( addAuxHandlers );
       return new Settings( input, output, allAuxHandlers, displayTime );
     }
@@ -165,6 +169,12 @@ public class Shell
     }
   }
 
+  public void removeHandler( final Object handler, final String prefix ) throws CLIException
+  {
+    allHandlers.remove( handler );
+    removeDeclaredMethods( handler, prefix );
+  }
+
   /**
    * This method is very similar to addMainHandler, except ShellFactory
    * will pass all handlers registered with this method to all this shell's subshells.
@@ -200,6 +210,18 @@ public class Shell
       if ( annotation != null )
       {
         commandTable.addMethod( m, handler, prefix );
+      }
+    }
+  }
+
+  private void removeDeclaredMethods( final Object handler, final String prefix ) throws CLIException
+  {
+    for ( Method m : handler.getClass().getMethods() )
+    {
+      Command annotation = m.getAnnotation( Command.class );
+      if ( annotation != null )
+      {
+        commandTable.removeMethod( m );
       }
     }
   }
@@ -244,7 +266,7 @@ public class Shell
    *
    * @throws java.io.IOException when can't readLine() from input.
    */
-  public void commandLoop() throws IOException
+  public void commandLoop() throws IOException, MaxAttemptsException
   {
     for ( Object handler : allHandlers )
     {
@@ -272,7 +294,7 @@ public class Shell
         lastException = clie;
         if ( ! command.trim().equals( "exit" ) )
         {
-          output.outputHeader( "¯\\_(ツ)_/¯" );
+          output.outputHeader( lastException.getMessage() );
         }
       }
     }
@@ -308,7 +330,7 @@ public class Shell
    * @throws asg.cliche.CLIException This may be TokenException
    * @see asg.cliche.Output
    */
-  public void processLine( String line ) throws CLIException
+  public void processLine( String line ) throws CLIException, MaxAttemptsException
   {
     if ( line.trim().equals( "?" ) )
     {
@@ -320,17 +342,18 @@ public class Shell
       if ( tokens.size() > 0 )
       {
         String discriminator = tokens.get( 0 ).getString();
-        processCommand( discriminator, tokens );
+        processCommand( discriminator, tokens, false );
       }
     }
   }
 
-  private void processCommand( String discriminator, List<Token> tokens ) throws CLIException
+  private void processCommand( String discriminator, List<Token> tokens, final boolean superCommands ) throws
+          CLIException, MaxAttemptsException
   {
     assert discriminator != null;
     assert ! discriminator.equals( "" );
 
-    ShellCommand commandToInvoke = commandTable.lookupCommand( discriminator, tokens );
+    ShellCommand commandToInvoke = commandTable.lookupCommand( discriminator, tokens, superCommands );
 
     Class[] paramClasses = commandToInvoke.getMethod().getParameterTypes();
     Object[] parameters = inputConverter.convertToParameters( tokens, paramClasses,
@@ -340,9 +363,40 @@ public class Shell
 
     long timeBefore = Calendar.getInstance().getTimeInMillis();
     Object invocationResult = commandToInvoke.invoke( parameters );
+
+    if ( invocationResult instanceof Response )
+    {
+      final Response r = (Response) invocationResult;
+
+      switch ( r.getResponse() )
+      {
+        case Response.FINISHED:
+          break;
+
+        case Response.REQUEST_INPUT:
+
+          for ( InputRequest inputRequest : r.getQuestions() )
+          {
+            processCommand( inputRequest.getCommandName(), requestInput( inputRequest.getQuestion(),
+                    inputRequest.getCommandName() ), true );
+          }
+          processCommand( discriminator, tokens, false );
+          break;
+
+        case Response.UPDATE_SESSION_HANDLER:
+          updateHandlersFromSession();
+          break;
+      }
+
+      if ( r.getMessage() != null )
+      {
+        addToOutput( r.getMessage() );
+      }
+    }
+
     long timeAfter = Calendar.getInstance().getTimeInMillis();
 
-    if ( invocationResult != null )
+    if ( invocationResult != null && ! ( invocationResult instanceof Response ) )
     {
       output.output( invocationResult, outputConverter );
     }
@@ -354,6 +408,16 @@ public class Shell
         output.output( String.format( TIME_MS_FORMAT_STRING, time ), outputConverter );
       }
     }
+  }
+
+  private List<Token> requestInput( final String question, final String commandToInvokeName ) throws CLIException
+  {
+    //Ask user the question
+    addToOutput( question );
+    //Get input from user
+    final String line = input.readCommand( path, false );
+    //Construct the line to tokenize
+    return Token.tokenize( commandToInvokeName + Fn.SPACE + line );
   }
 
   private static final String TIME_MS_FORMAT_STRING = "time: %d ms";
@@ -373,7 +437,6 @@ public class Shell
     this.displayTime = displayTime;
   }
 
-
   /**
    * Hint is some text displayed before the command loop and every time user enters "?".
    */
@@ -390,6 +453,35 @@ public class Shell
   public void addToOutput( final String value )
   {
     output.outputHeader( value );
+  }
+
+  public void setSession( final Session session )
+  {
+    this.session = session;
+    final ArrayList<String> list = new ArrayList<>();
+    list.add( session.getRequestedServer().getIp() );
+    path = list;
+    updateHandlersFromSession();
+  }
+
+  public void clearSession() throws CLIException
+  {
+    for ( Object o : session.getHandlers() )
+    {
+      removeHandler( o, "" );
+    }
+    session = null;
+  }
+
+  private void updateHandlersFromSession()
+  {
+    if ( session != null )
+    {
+      for ( Object o : session.getHandlers() )
+      {
+        addMainHandler( o, "" );
+      }
+    }
   }
 
 

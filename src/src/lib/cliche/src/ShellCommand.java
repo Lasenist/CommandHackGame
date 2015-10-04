@@ -6,6 +6,8 @@
 package lib.cliche.src;
 
 
+import code.hack.src.util.Fn;
+
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
@@ -76,8 +78,7 @@ public class ShellCommand
     assert method != null;
     try
     {
-      Object result = method.invoke( handler, parameters );
-      return result;
+      return method.invoke( handler, parameters );
     }
     catch ( InvocationTargetException ite )
     {
@@ -91,7 +92,26 @@ public class ShellCommand
 
   public boolean canBeDenotedBy( String commandName )
   {
-    return commandName.equals( prefix + name ) || commandName.equals( prefix + abbreviation );
+    return commandName.equals( prefix + name ) || commandName.equals( prefix + abbreviation ) || commandName.equals(
+            buildMethodName() );
+  }
+
+  private String buildMethodName()
+  {
+    final String[] sections = name.split( "-" );
+    String methodName = Fn.EMPTY_STRING;
+
+    for ( int i = 1; i < sections.length; i++ )
+    {
+      char c = sections[i].charAt( 0 );
+      sections[i] = sections[i].replaceFirst( String.valueOf( c ), String.valueOf( Character.toUpperCase( c ) ) );
+    }
+
+    for ( String section : sections )
+    {
+      methodName = methodName + section;
+    }
+    return methodName;
   }
 
   public int getArity()
