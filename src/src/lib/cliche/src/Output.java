@@ -22,4 +22,6 @@ public interface Output
 
   void outputHeader( String text );
 
+  void outputHeader( String text, String path );
+
 }

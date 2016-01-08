@@ -1,6 +1,6 @@
-package code.hack.src.ui;
+package code.hack.src.network.server.ui;
 
-import code.hack.src.network.common.Computer;
+import code.hack.src.network.server.Server;
 
 import javax.swing.*;
 import java.awt.*;
@@ -16,7 +16,7 @@ public class LoginScreen extends JFrame
   /*
   * V A R I A B L E S
   */
-  final Computer computer;
+  final Server computer;
   final Timer timer = new Timer( 1600, new TimerActionlistener() );
   final LoginActionListener loginActionListener = new LoginActionListener();
 
@@ -41,11 +41,10 @@ public class LoginScreen extends JFrame
   /*
   * C O N S T R U C T O R
   */
-  public LoginScreen( final Computer computer )
+  public LoginScreen( final Server server )
   {
-    super( computer.getIp() + " - Login Screen" );
-    this.computer = computer;
-
+    super( server.getIp() + " - Login Screen" );
+    this.computer = server;
     init();
   }
 

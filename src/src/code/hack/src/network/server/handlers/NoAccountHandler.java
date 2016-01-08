@@ -1,7 +1,6 @@
-package code.hack.src.network.common.handlers;
+package code.hack.src.network.server.handlers;
 
-import code.hack.src.network.common.Server;
-import code.hack.src.network.manager.Session;
+import code.hack.src.network.connection.Session;
 import lib.cliche.src.Command;
 import lib.cliche.src.Response;
 
@@ -9,24 +8,22 @@ import lib.cliche.src.Response;
  * Created by Lasen on 02/10/2015.
  * Handler handed to the session when no account has been logged into on a server.
  */
-public class NoAccountHandler
+public class NoAccountHandler extends CommandHandler
 {
+  public static final String LOGIN = "login";
+
   /*
   * V A R I A B L E S
   */
   private String username;
   private String password;
 
-  private Session session;
-  private Server server;
-
   /*
   * C O N S T R U C T O R
   */
   public NoAccountHandler( final Session session )
   {
-    this.session = session;
-    server = session.getRequestedServer();
+    super( session );
   }
 
   /*
@@ -35,7 +32,7 @@ public class NoAccountHandler
   @Command( description = "Attempt to login to the server" )
   public Response login()
   {
-    Response response = new Response( Response.FINISHED );
+    Response response = new Response();
 
     if ( username == null && password == null )
     {

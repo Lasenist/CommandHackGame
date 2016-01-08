@@ -12,10 +12,14 @@
 
 package lib.cliche.src;
 
-import code.hack.src.network.manager.Session;
+import code.hack.src.listeners.HandlerListener;
+import code.hack.src.network.connection.Session;
+import code.hack.src.network.server.Server;
+import code.hack.src.network.server.handlers.CommandHandler;
 import code.hack.src.util.Fn;
 import lib.cliche.src.util.ArrayHashMultiMap;
 import lib.cliche.src.util.MultiMap;
+import lib.cliche.src.util.Strings;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
@@ -40,6 +44,8 @@ public class Shell
   private String appName;
 
   private Session session;
+  private ArrayList<Server> proxies;
+  private ArrayList<HandlerListener> handlerListeners;
 
   public static class Settings
   {
@@ -48,7 +54,7 @@ public class Shell
     private final MultiMap<String, Object> auxHandlers;
     private final boolean displayTime;
 
-    public Settings( Input input, Output output, MultiMap auxHandlers, boolean displayTime )
+    public Settings( Input input, Output output, MultiMap<String, Object> auxHandlers, boolean displayTime )
     {
       this.input = input;
       this.output = output;
@@ -91,12 +97,14 @@ public class Shell
    * @param s            Settings object for the shell instance
    * @param commandTable CommandTable to store commands
    * @param path         Shell's location: list of path elements.
-   * @see asg.cliche.ShellFactory
+   * @see lib.cliche.src.ShellFactory
    */
   public Shell( Settings s, CommandTable commandTable, List<String> path )
   {
     this.commandTable = commandTable;
     this.path = path;
+    this.proxies = new ArrayList<>();
+    this.handlerListeners = new ArrayList<>();
     setSettings( s );
   }
 
@@ -134,8 +142,14 @@ public class Shell
     return inputConverter;
   }
 
-  private MultiMap<String, Object> auxHandlers = new ArrayHashMultiMap<String, Object>();
-  private List<Object> allHandlers = new ArrayList<Object>();
+  public Session getSession()
+  {
+    return session;
+  }
+  public ArrayList<Server> getProxies(){ return proxies; }
+
+  private MultiMap<String, Object> auxHandlers = new ArrayHashMultiMap<>();
+  private List<Object> allHandlers = new ArrayList<>();
 
 
   /**
@@ -148,8 +162,8 @@ public class Shell
    *
    * @param handler Object which should be registered as handler.
    * @param prefix  Prefix that should be prepended to all handler's command names.
-   * @see asg.cliche.ShellDependent
-   * @see asg.cliche.ShellManageable
+   * @see lib.cliche.src.ShellDependent
+   * @see lib.cliche.src.ShellManageable
    */
   public void addMainHandler( Object handler, String prefix )
   {
@@ -167,12 +181,27 @@ public class Shell
     {
       ( (ShellDependent) handler ).cliSetShell( this );
     }
+
+    for ( final HandlerListener listener : handlerListeners )
+    {
+      listener.handlerAdded( handler );
+    }
+  }
+
+  public void addMainHandler( final Object handler )
+  {
+    addMainHandler( handler, Fn.EMPTY_STRING );
   }
 
   public void removeHandler( final Object handler, final String prefix ) throws CLIException
   {
     allHandlers.remove( handler );
     removeDeclaredMethods( handler, prefix );
+
+    for ( final HandlerListener listener : handlerListeners )
+    {
+      listener.handlerRemoved( handler );
+    }
   }
 
   /**
@@ -181,7 +210,7 @@ public class Shell
    *
    * @param handler Object which should be registered as handler.
    * @param prefix  Prefix that should be prepended to all handler's command names.
-   * @see asg.cliche.Shell#addMainHandler(java.lang.Object, java.lang.String)
+   * @see lib.cliche.src.Shell#addMainHandler(java.lang.Object, java.lang.String)
    */
   public void addAuxHandler( Object handler, String prefix )
   {
@@ -266,7 +295,7 @@ public class Shell
    *
    * @throws java.io.IOException when can't readLine() from input.
    */
-  public void commandLoop() throws IOException, MaxAttemptsException
+  public void commandLoop() throws IOException
   {
     for ( Object handler : allHandlers )
     {
@@ -327,10 +356,10 @@ public class Shell
    * All output is directed to shell's Output.
    *
    * @param line Full command line
-   * @throws asg.cliche.CLIException This may be TokenException
-   * @see asg.cliche.Output
+   * @throws lib.cliche.src.CLIException This may be TokenException
+   * @see lib.cliche.src.Output
    */
-  public void processLine( String line ) throws CLIException, MaxAttemptsException
+  public void processLine( String line ) throws CLIException
   {
     if ( line.trim().equals( "?" ) )
     {
@@ -348,7 +377,7 @@ public class Shell
   }
 
   private void processCommand( String discriminator, List<Token> tokens, final boolean superCommands ) throws
-          CLIException, MaxAttemptsException
+          CLIException
   {
     assert discriminator != null;
     assert ! discriminator.equals( "" );
@@ -377,14 +406,32 @@ public class Shell
 
           for ( InputRequest inputRequest : r.getQuestions() )
           {
-            processCommand( inputRequest.getCommandName(), requestInput( inputRequest.getQuestion(),
-                    inputRequest.getCommandName() ), true );
+            int count = 0;
+            int maxTries = 3;
+            boolean retrying = true;
+            while( retrying )
+            {
+              try
+              {
+                processCommand( inputRequest.getCommandName(), requestInput( inputRequest.getQuestion(),
+                      inputRequest.getCommandName() ), true );
+                retrying = false;
+              }
+              catch ( CLIException e )
+              {
+                if (++count == maxTries)
+                {
+                  throw CLIException.tooManyAttempts( discriminator );
+                }
+              }
+            }
           }
           processCommand( discriminator, tokens, false );
           break;
 
-        case Response.UPDATE_SESSION_HANDLER:
+        case Response.UPDATE:
           updateHandlersFromSession();
+          updatePathFromSession();
           break;
       }
 
@@ -450,14 +497,26 @@ public class Shell
     return appName;
   }
 
+  public List<Object> getHandlers()
+  {
+    return allHandlers;
+  }
+
   public void addToOutput( final String value )
   {
     output.outputHeader( value );
   }
 
+  public void addToOutputWithPath( final String value )
+  {
+    output.outputHeader( value, Strings.joinStrings( path, false, '/' ) + ">" );
+  }
+
   public void setSession( final Session session )
   {
     this.session = session;
+    final ArrayList<Server> currentProxies = new ArrayList<>( proxies );
+    session.setProxyChain( currentProxies );
     final ArrayList<String> list = new ArrayList<>();
     list.add( session.getRequestedServer().getIp() );
     path = list;
@@ -466,6 +525,7 @@ public class Shell
 
   public void clearSession() throws CLIException
   {
+    session.getRequestedServer().disconnect( session );
     for ( Object o : session.getHandlers() )
     {
       removeHandler( o, "" );
@@ -473,16 +533,43 @@ public class Shell
     session = null;
   }
 
-  private void updateHandlersFromSession()
+  public void updateHandlersFromSession()
   {
     if ( session != null )
     {
-      for ( Object o : session.getHandlers() )
+      for ( CommandHandler handler : session.getHandlers() )
       {
-        addMainHandler( o, "" );
+        if( !allHandlers.contains( handler ) )
+        {
+          addMainHandler( handler, "" );
+        }
       }
     }
   }
 
+  private void updatePathFromSession()
+  {
+    if ( session != null )
+    {
+      setPath( session.getCurrentPathAsArray() );
+    }
+  }
 
+  public void addProxy( final Server server )
+  {
+    if ( !proxies.contains( server ) && server.isProxyEnabled() )
+    {
+      proxies.add( server );
+    }
+  }
+
+  public void addHandlerListener( final HandlerListener listener )
+  {
+    handlerListeners.add( listener );
+  }
+
+  public void removeHandlerListener( final HandlerListener listener )
+  {
+    handlerListeners.remove( listener );
+  }
 }

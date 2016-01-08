@@ -138,9 +138,18 @@ public class ConsoleIO implements Input, Output, ShellManageable
 
   public void outputHeader( String text )
   {
-    if ( text != null )
+    outputHeader( text, null );
+  }
+
+  public void outputHeader( final String text, final String path )
+  {
+    if ( text!= null )
     {
       println( text );
+    }
+    if ( path != null )
+    {
+      print( path );
     }
   }
 

@@ -16,8 +16,7 @@ public class Response
   //The command requests input
   public static final int REQUEST_INPUT = 1;
   //The command is giving a handler;
-  public static final int UPDATE_SESSION_HANDLER = 2;
-
+  public static final int UPDATE = 2;
 
   /*
   * V A R I A B L E S
@@ -25,9 +24,6 @@ public class Response
   //Why the command is notifying the shell
   @NotNull
   private int response;
-
-  //The name of the command used to validate the requested input.
-  private String validationCommand;
 
   //The question to ask the user for the input
   private ArrayList<InputRequest> questions;
@@ -47,17 +43,17 @@ public class Response
     questions = new ArrayList<>();
   }
 
+  public Response()
+  {
+    this( Response.FINISHED );
+  }
+
   /*
   * G E T T E R S
   */
   public int getResponse()
   {
     return response;
-  }
-
-  public String getValidationCommand()
-  {
-    return validationCommand;
   }
 
   public ArrayList<InputRequest> getQuestions()
@@ -68,11 +64,6 @@ public class Response
   public String getMessage()
   {
     return message;
-  }
-
-  public Object getNewHandler()
-  {
-    return handler;
   }
 
   /*
@@ -86,11 +77,6 @@ public class Response
   public void setMessage( final String message )
   {
     this.message = message;
-  }
-
-  public void setNewHandler( final Object handler )
-  {
-    this.handler = handler;
   }
 
   /*

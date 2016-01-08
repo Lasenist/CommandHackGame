@@ -48,4 +48,14 @@ public class CLIException extends Exception
     return new CLIException( "Ambiguous command " + Token.escapeString( commandName )
             + " taking " + argCount + " arguments" );
   }
+
+  public static CLIException tooManyAttempts( final String commandName )
+  {
+    return new CLIException( "Too many incorrect input attempts during command " + commandName );
+  }
+
+  public static CLIException invalidValue( final String commandName )
+  {
+    return new CLIException( "Too many invalid input attempts during command " + commandName );
+  }
 }

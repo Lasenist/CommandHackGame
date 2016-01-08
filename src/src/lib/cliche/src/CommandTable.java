@@ -75,7 +75,7 @@ public class CommandTable
     }
     catch ( CLIException e )
     {
-      //The command wasn't there
+      e.printStackTrace();
     }
   }
 
