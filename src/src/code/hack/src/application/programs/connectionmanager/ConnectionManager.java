@@ -3,12 +3,11 @@ package code.hack.src.application.programs.connectionmanager;
 import code.hack.src.application.Application;
 import code.hack.src.main.Launcher;
 import code.hack.src.main.NetworkManager;
+import code.hack.src.main.PlayerServer;
 import code.hack.src.network.connection.Session;
 import code.hack.src.network.server.Server;
-import code.hack.src.network.server.handlers.NoAccountHandler;
-import code.hack.src.util.CommandUtil;
+import code.hack.src.network.users.Account;
 import code.hack.src.util.NetworkUtil;
-import lib.cliche.src.CLIException;
 import lib.cliche.src.Command;
 import lib.cliche.src.Response;
 import lib.cliche.src.Shell;
@@ -31,6 +30,7 @@ public class ConnectionManager extends Application
   final private static int FILE_SIZE = 512;
   final private static int RAM_SIZE = 128;
   final protected NetworkManager networkManager;
+  final protected PlayerServer playerServer;
   protected String endCurrentSession;
 
   private ProxyPanel[]
@@ -49,10 +49,11 @@ public class ConnectionManager extends Application
   /*
   * C O N S T R U C T O R
   */
-  public ConnectionManager( final Shell shell, final NetworkManager networkManager )
+  public ConnectionManager( final Shell shell, final PlayerServer playerServer )
   {
-    super( NAME, VERSION, FILE_SIZE, RAM_SIZE, shell );
-    this.networkManager = networkManager;
+    super( NAME, new Account( "Securitech", "N/A" ), VERSION, FILE_SIZE, RAM_SIZE, shell );
+    this.networkManager = Launcher.networkManager;
+    this.playerServer = playerServer;
   }
 
   /*
@@ -68,6 +69,7 @@ public class ConnectionManager extends Application
   */
   public void launch()
   {
+    frame.add( panel );
     frame.setPreferredSize( new Dimension( 350, 820 ) );
 
     for ( int i = 0; i < panels.length; i++ )
@@ -78,7 +80,7 @@ public class ConnectionManager extends Application
     super.launch();
   }
 
-  public void close() throws CLIException
+  public void close()
   {
     super.close();
     frame = null;
@@ -96,55 +98,16 @@ public class ConnectionManager extends Application
     Response response = new Response();
 
     final Session session = shell.getSession();
-    if ( endCurrentSession == null )
+    if ( networkManager.isProxyEnabled( ip ) && playerServer.getServerIndex().get( ip ) != null )
     {
-      if ( networkManager.isProxyEnabled( ip ) )
-      {
-        final Server server = networkManager.getServer( ip );
-
-        if ( server.hasAccounts() && session != null && false ) //TODO: UI for this so setting to false for now
-        {
-          response.setResponse( Response.REQUEST_INPUT );
-          response.addToSetters( "setEndCurrentSession", "Utilising proxy requires login details.\n" +
-                  "End current session to input now? y/n" );
-        }
-        else
-        {
-          addProxy( server );
-        }
-      }
-      else
-      {
-        shell.addToOutputWithPath( "\n" +
-                "That server does not have proxy capabilities.\nContact your system admin if this is in " +
-                        "error." );
-      }
+      addProxy( networkManager.getServer( ip ) );
     }
     else
     {
-      if ( CommandUtil.isYesOrNo( endCurrentSession ) )
-      {
-        if ( CommandUtil.isYes( endCurrentSession ) )
-        {
-          shell.clearSession();
-          shell.setSession( networkManager.createConnection( Launcher.localhost, ip ) );
-          shell.processLine( NoAccountHandler.LOGIN );
-
-          if ( session.getAccount() != null )
-          {
-            addProxy( session.getRequestedServer() );
-          }
-        }
-        else
-        {
-          response.setMessage( "Adding proxy action cancelled." );
-        }
-      }
-      else
-      {
-        throw CLIException.invalidValue( "addProxy" );
-      }
+      shell.addToOutput( "That server does not have proxy capabilities." );
+      shell.addToOutput( "Contact your system admin if this is in error." );
     }
+
     endCurrentSession = null;
     return response;
   }
@@ -160,14 +123,13 @@ public class ConnectionManager extends Application
         if ( proxies.get( i ).getIp().equals( ip ) )
         {
           proxies.remove( i );
-          shell.addToOutputWithPath( "\n" +  "Successfully removed proxy " + ip + " from chain" );
+          shell.addToOutput( "Successfully removed proxy " + ip + " from chain" );
         }
       }
     }
     else
     {
-      //TODO:Error Handling
-      shell.addToOutputWithPath( "\n" +  "Invalid ip" );
+      shell.addToOutput( "Invalid ip" );
     }
     updateUI();
   }
@@ -175,7 +137,7 @@ public class ConnectionManager extends Application
   private void addProxy( final Server server )
   {
     shell.addProxy( server );
-    shell.addToOutputWithPath( "\n" + "Successfully added proxy " + server.getIp() + " to the chain." );
+    shell.addToOutput( "Successfully added proxy " + server.getIp() + " to the chain." );
     updateUI();
   }
 

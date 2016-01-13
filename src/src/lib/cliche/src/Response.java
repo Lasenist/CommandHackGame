@@ -26,10 +26,10 @@ public class Response
   private int response;
 
   //The question to ask the user for the input
-  private ArrayList<InputRequest> questions;
+  private InputRequest inputRequest;
 
   //The message given to the user after the command has finished.
-  private String message;
+  private ArrayList<String> message;
 
   //The handler to give the Shell.
   private Object handler;
@@ -40,7 +40,6 @@ public class Response
   public Response( final int response )
   {
     this.response = response;
-    questions = new ArrayList<>();
   }
 
   public Response()
@@ -56,12 +55,12 @@ public class Response
     return response;
   }
 
-  public ArrayList<InputRequest> getQuestions()
+  public InputRequest getInputRequest()
   {
-    return questions;
+    return inputRequest;
   }
 
-  public String getMessage()
+  public ArrayList<String> getMessage()
   {
     return message;
   }
@@ -74,16 +73,27 @@ public class Response
     this.response = response;
   }
 
-  public void setMessage( final String message )
+  public void setMessage( final ArrayList<String> message )
   {
+    this.message = message;
+  }
+
+  public void setMessage( final String string )
+  {
+    final ArrayList<String> message = new ArrayList<>();
+    message.add( string );
     this.message = message;
   }
 
   /*
   * M E T H O D S
   */
-  public void addToSetters( final String commandName, final String question )
+  public void addToSetters( final ArrayList<Question> questions, final String
+          originalCommand )
   {
-    questions.add( new InputRequest( commandName, question ) );
+    if ( inputRequest == null )
+    {
+      inputRequest = new InputRequest( questions, originalCommand );
+    }
   }
 }

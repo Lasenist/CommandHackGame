@@ -3,6 +3,7 @@ package code.hack.src.application.programs.connectionmanager;
 import code.hack.src.main.NetworkManager;
 import code.hack.src.util.Fn;
 import code.hack.src.util.NetworkUtil;
+import lib.cliche.src.CLIException;
 
 import javax.swing.*;
 import java.awt.*;
@@ -36,23 +37,36 @@ public class AddProxyDialog extends JOptionPane
     boolean isCancelled = false;
     while ( !isValid )
     {
-      value = showInputDialog( parentComponent, "Enter ip to add", null, JOptionPane.QUESTION_MESSAGE );
+      value = showInputDialog( parentComponent, "Enter IP to add", null, JOptionPane.QUESTION_MESSAGE );
 
       if ( value == null )
       {
         isCancelled = true;
       }
 
-      if ( NetworkUtil.isValidIp( isCancelled ? Fn.EMPTY_STRING : value ) && ( isCancelled || manager
-              .isProxyEnabled( value ) ) || isCancelled )
+      try
       {
-        isValid = true;
+        if ( NetworkUtil.isValidIp( isCancelled ? Fn.EMPTY_STRING : value ) &&
+                ( isCancelled || manager.isProxyEnabled( value ) ) || isCancelled )
+        {
+          isValid = true;
+        }
+        else
+        {
+          invalidIpAddress( parentComponent );
+        }
       }
-      else
+      catch ( CLIException e )
       {
-        JOptionPane.showMessageDialog( parentComponent, "Invalid proxy address", "Error", JOptionPane.ERROR_MESSAGE );
+        invalidIpAddress( parentComponent );
       }
     }
     return value;
   }
+
+  private void invalidIpAddress( final Component parentComponent )
+  {
+    JOptionPane.showMessageDialog( parentComponent, "Invalid IP address", "Error", JOptionPane.ERROR_MESSAGE );
+  }
+
 }

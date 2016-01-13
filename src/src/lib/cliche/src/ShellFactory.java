@@ -5,7 +5,7 @@
 
 package lib.cliche.src;
 
-import lib.cliche.src.util.ArrayHashMultiMap;
+import code.hack.src.util.Fn;
 import lib.cliche.src.util.EmptyMultiMap;
 import lib.cliche.src.util.MultiMap;
 
@@ -33,26 +33,16 @@ public class ShellFactory
    * @return Shell that can be either further customized or run directly by calling commandLoop().
    * @see asg.cliche.Shell#Shell(asg.cliche.Shell.Settings, asg.cliche.CommandTable, java.util.List)
    */
-  public static Shell createConsoleShell( String prompt, String appName, Object... handlers )
+  public static Shell createConsoleShell( String prompt, String appName )
   {
-    ConsoleIO io = new ConsoleIO();
-
     List<String> path = new ArrayList<String>( 1 );
     path.add( prompt );
 
-    MultiMap<String, Object> modifAuxHandlers = new ArrayHashMultiMap<String, Object>();
-    modifAuxHandlers.put( "!", io );
-
-    Shell theShell = new Shell( new Shell.Settings( io, io, modifAuxHandlers, false ),
-            new CommandTable( new DashJoinedNamer( true ) ), path );
+    Shell theShell = new Shell( new CommandTable( new DashJoinedNamer( true ) ), path );
     theShell.setAppName( appName );
 
-    theShell.addMainHandler( theShell, "!" );
+    theShell.addMainHandler( theShell, Fn.EMPTY_STRING );
     theShell.addMainHandler( new HelpCommandHandler(), "?" );
-    for ( Object h : handlers )
-    {
-      theShell.addMainHandler( h, "" );
-    }
 
     return theShell;
   }
@@ -73,19 +63,16 @@ public class ShellFactory
   public static Shell createConsoleShell( String prompt, String appName, Object mainHandler,
           MultiMap<String, Object> auxHandlers )
   {
-    ConsoleIO io = new ConsoleIO();
 
     List<String> path = new ArrayList<String>( 1 );
     path.add( prompt );
 
-    MultiMap<String, Object> modifAuxHandlers = new ArrayHashMultiMap<String, Object>( auxHandlers );
-    modifAuxHandlers.put( "!", io );
 
-    Shell theShell = new Shell( new Shell.Settings( io, io, modifAuxHandlers, false ),
-            new CommandTable( new DashJoinedNamer( true ) ), path );
+    Shell theShell = new Shell( new CommandTable( new DashJoinedNamer( true ) ), path );
+    final ShellFrame shellFrame = new ShellFrame( theShell );
     theShell.setAppName( appName );
 
-    theShell.addMainHandler( theShell, "!" );
+    theShell.addMainHandler( theShell, Fn.EMPTY_STRING );
     theShell.addMainHandler( new HelpCommandHandler(), "?" );
     theShell.addMainHandler( mainHandler, "" );
 
@@ -128,11 +115,10 @@ public class ShellFactory
     List<String> newPath = new ArrayList<String>( parent.getPath() );
     newPath.add( pathElement );
 
-    Shell subshell = new Shell( parent.getSettings().createWithAddedAuxHandlers( auxHandlers ),
-            new CommandTable( parent.getCommandTable().getNamer() ), newPath );
+    Shell subshell = new Shell( new CommandTable( parent.getCommandTable().getNamer() ), newPath );
 
     subshell.setAppName( appName );
-    subshell.addMainHandler( subshell, "!" );
+    subshell.addMainHandler( subshell, Fn.EMPTY_STRING );
     subshell.addMainHandler( new HelpCommandHandler(), "?" );
 
     subshell.addMainHandler( mainHandler, "" );

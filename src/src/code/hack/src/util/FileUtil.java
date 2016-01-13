@@ -2,6 +2,9 @@ package code.hack.src.util;
 
 import code.hack.src.Files.File;
 import code.hack.src.Files.FolderFile;
+import code.hack.src.application.Application;
+
+import java.util.ArrayList;
 
 /**
  * Created by Lasen on 09/10/15.
@@ -46,7 +49,7 @@ public class FileUtil
     {
       if( s.equals( "\\" ) )
       {
-        slash = "\\";
+        slash = "\\\\";
       }
       else if( s.equals( "/" ) )
       {
@@ -86,7 +89,7 @@ public class FileUtil
       newPath = newPath + pathSegments[i];
       if ( i != pathSegments.length - 1 )
       {
-        newPath = newPath + "/";
+        newPath = newPath + "\\";
       }
     }
     return newPath;
@@ -114,11 +117,23 @@ public class FileUtil
   public static FolderFile getFolderFromPath( final FolderFile files, String path )
   {
     path = removeFirstPathSegment( path );
-    final String[] pathSegments = FileUtil.getFoldersInPath( path );
+    String[] pathSegments = FileUtil.getFoldersInPath( path );
     FolderFile aFile = null;
 
-    if ( !pathSegments[0].equals( "" ) )
+    //If it's only C: then set Files as the folder we're looking for, if it exists
+    if ( pathSegments[0].equals( files.getName() ) && pathSegments.length == 1 )
     {
+      aFile = files;
+    }
+    else
+    {
+      //If the first part of the path is the base folder, then take it out as we're looking in that folder
+      if ( pathSegments[0].equals( files.getName() ) )
+      {
+        path = removeFirstPathSegment( path );
+        pathSegments = FileUtil.getFoldersInPath( path );
+      }
+
       for ( File file : files.getContents() )
       {
         boolean isNameMatching = file.getName().equals( pathSegments[0] );
@@ -133,10 +148,6 @@ public class FileUtil
           aFile = getFolderFromPath( (FolderFile) file, removeFirstPathSegment( path ) );
         }
       }
-    }
-    else if ( pathSegments[0].equals( "" ) )
-    {
-      aFile = files;
     }
     return aFile;
   }
@@ -156,10 +167,28 @@ public class FileUtil
         currentPath = currentPath + cdPathSegments[i];
         if ( i == cdPathSegments.length - 1 )
         {
-          currentPath = currentPath + "/";
+          currentPath = currentPath + "\\";
         }
       }
     }
     return currentPath;
   }
+
+  public static ArrayList<Application> getAllApplications( final FolderFile folderFile )
+  {
+    final ArrayList<Application> applications = new ArrayList<>();
+    for( final File file : folderFile.getContents() )
+    {
+      if ( file instanceof Application )
+      {
+        applications.add( (Application) file );
+      }
+      else if ( file instanceof FolderFile )
+      {
+        applications.addAll( getAllApplications( (FolderFile) file ) );
+      }
+    }
+    return applications;
+  }
+
 }

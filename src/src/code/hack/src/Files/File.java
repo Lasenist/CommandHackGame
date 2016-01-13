@@ -17,6 +17,7 @@ public abstract class File
   protected ArrayList<FilePermissions> permissions;
   protected Date dateCreated;
   protected Date dateModified;
+  protected int fileSize;
 
   public File( final String name, final Account author, final Account lastAuthor, final Date dateCreated, final
   Date dateModified )
@@ -26,6 +27,7 @@ public abstract class File
     this.lastAuthor = lastAuthor;
     this.dateCreated = dateCreated;
     this.dateModified = dateModified;
+    this.fileSize = 0;
     permissions = new ArrayList<>();
   }
 

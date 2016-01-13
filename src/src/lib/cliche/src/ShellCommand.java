@@ -73,21 +73,10 @@ public class ShellCommand
   }
 
   public Object invoke( Object[] parameters )
-          throws CLIException
+          throws CLIException, InvocationTargetException, IllegalAccessException
   {
     assert method != null;
-    try
-    {
-      return method.invoke( handler, parameters );
-    }
-    catch ( InvocationTargetException ite )
-    {
-      return ite.getCause();
-    }
-    catch ( Exception ex )
-    {
-      throw new CLIException( ex );
-    }
+    return method.invoke( handler, parameters );
   }
 
   public boolean canBeDenotedBy( String commandName )

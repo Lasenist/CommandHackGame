@@ -1,6 +1,7 @@
 package code.hack.src.network.logging;
 
 import code.hack.src.network.connection.Session;
+import code.hack.src.util.Fn;
 
 /**
  * Created by Lasen on 05/12/15.
@@ -8,13 +9,17 @@ import code.hack.src.network.connection.Session;
  */
 public class EndedSession extends Log
 {
-  public EndedSession( Session session )
+  final private boolean forced;
+
+  public EndedSession( final Session session, final boolean forced )
   {
     super( session );
+    this.forced = forced;
   }
 
   public String getLogMessage()
   {
-    return "Session ended with " + session.getRequestingIp();
+    final String type = forced ? " forcibly" : Fn.EMPTY_STRING;
+    return "Session" + type + " ended with " + session.getRequestingIp();
   }
 }

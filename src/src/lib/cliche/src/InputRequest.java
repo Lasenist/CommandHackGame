@@ -1,27 +1,29 @@
 package lib.cliche.src;
 
+import java.util.ArrayList;
+
 /**
  * Created by Lasen on 02/10/2015.
  * Holds the question to be asked to the user, and the command to invoke with the answer.
  */
 public class InputRequest
 {
-  private String commandName;
-  private String question;
+  private ArrayList<Question> questions;
+  private String originalCommand;
 
-  public InputRequest( final String commandName, final String question )
+  public InputRequest( final ArrayList<Question> questions, final String originalCommand )
   {
-    this.commandName = commandName;
-    this.question = question;
+    this.questions = questions;
+    this.originalCommand = originalCommand;
   }
 
-  public String getCommandName()
+  public ArrayList<Question> getQuestions()
   {
-    return commandName;
+    return questions;
   }
 
-  public String getQuestion()
+  public String getOriginalCommand()
   {
-    return question;
+    return originalCommand;
   }
 }

@@ -17,8 +17,7 @@ public class Session
   /*
   * V A R I A B L E S
   */
-  private final String sessionId;
-  private final String requestingIp;
+  private final Server requestingServer;
   private final Server requestedServer;
   private ArrayList<Server> proxies;
   private Account account;
@@ -28,13 +27,11 @@ public class Session
   /*
   * C O N S T R U C T O R
   */
-  public Session( final String requestingIp, final Server requestedServer )
+  public Session( final Server requestingServer, final Server requestedServer )
   {
-    this.requestingIp = requestingIp;
+    this.requestingServer = requestingServer;
     this.requestedServer = requestedServer;
     final String ip = requestedServer.getIp();
-    final String string = requestingIp + ip;
-    sessionId = String.valueOf( string.hashCode() );
     currentPath.add( ip );
     proxies = new ArrayList<>();
   }
@@ -49,12 +46,12 @@ public class Session
 
   public String getRequestingIp()
   {
-    return requestingIp;
+    return requestingServer.getIp();
   }
 
-  public String getSessionId()
+  public Server getRequestingServer()
   {
-    return sessionId;
+    return requestingServer;
   }
 
   public Account getAccount()
@@ -75,14 +72,13 @@ public class Session
   public String getCurrentPath()
   {
     StringBuilder sb = new StringBuilder();
-    sb.append( "/" );
 
     for ( int i = 0; i < currentPath.size(); i++ )
     {
       sb.append( currentPath.get( i ) );
       if ( i != currentPath.size() )
       {
-        sb.append( "/" );
+        sb.append( "\\" );
       }
     }
     return sb.toString();

@@ -8,7 +8,10 @@ package lib.cliche.src;
 import code.hack.src.util.Fn;
 import lib.cliche.src.util.Strings;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintStream;
 import java.lang.reflect.Array;
 import java.util.Collection;
 import java.util.List;
@@ -22,18 +25,20 @@ import java.util.List;
  */
 public class ConsoleIO implements Input, Output, ShellManageable
 {
+  final ShellFrame shellFrame;
 
-  public ConsoleIO( BufferedReader in, PrintStream out, PrintStream err )
+  public ConsoleIO( BufferedReader in, PrintStream out, PrintStream err, final ShellFrame shellFrame )
   {
     this.in = in;
     this.out = out;
     this.err = err;
+    this.shellFrame = shellFrame;
   }
 
-  public ConsoleIO()
+  public ConsoleIO( final ShellFrame shellFrame )
   {
     this( new BufferedReader( new InputStreamReader( System.in ) ),
-            System.out, System.err );
+            System.out, System.err, shellFrame );
   }
 
   private BufferedReader in;
@@ -124,16 +129,16 @@ public class ConsoleIO implements Input, Output, ShellManageable
     inputState = InputState.USER;
   }
 
-  @Command( description = "Reads commands from file" )
-  public void runScript(
-          @Param( name = "filename", description = "Full file name of the script" )
-          String filename
-  ) throws FileNotFoundException
-  {
-
-    scriptReader = new BufferedReader( new InputStreamReader( new FileInputStream( filename ) ) );
-    inputState = InputState.SCRIPT;
-  }
+//  @Command( description = "Reads commands from file" )
+//  public void runScript(
+//          @Param( name = "filename", description = "Full file name of the script" )
+//          String filename
+//  ) throws FileNotFoundException
+//  {
+//
+//    scriptReader = new BufferedReader( new InputStreamReader( new FileInputStream( filename ) ) );
+//    inputState = InputState.SCRIPT;
+//  }
 
 
   public void outputHeader( String text )
@@ -245,6 +250,7 @@ public class ConsoleIO implements Input, Output, ShellManageable
 
   private void println( Object x )
   {
+    shellFrame.addToOutput( (String) x );
     out.println( x );
     if ( log != null )
     {
@@ -317,35 +323,33 @@ public class ConsoleIO implements Input, Output, ShellManageable
     {
       loopCounter--;
     }
-    if ( loopCounter < 0 )
-    {
-      disableLogging();
-    }
+//    if ( loopCounter < 0 )
+//    {
+//      disableLogging();
+//    }
   }
 
-  @Command( description = "Sets up logging, which duplicates all subsequent output in a file" )
-  public void enableLogging(
-          @Param( name = "fileName", description = "Name of the logfile" ) String filename
-  ) throws FileNotFoundException
-  {
+//  @Command( description = "Sets up logging, which duplicates all subsequent output in a file" )
+//  public void enableLogging(
+//          @Param( name = "fileName", description = "Name of the logfile" ) String filename
+//  ) throws FileNotFoundException
+//  {
+//
+//    log = new PrintStream( filename );
+//    loopCounter = 0;
+//  }
 
-    log = new PrintStream( filename );
-    loopCounter = 0;
-  }
-
-  @Command( description = "Turns off logging" )
-  public String disableLogging()
-  {
-    if ( log != null )
-    {
-      log.close();
-      log = null;
-      return "Logging disabled";
-    }
-    else
-    {
-      return "Logging is already disabled";
-    }
-  }
-
+//  @Command( description = "Turns off logging" )
+//  public String disableLogging()
+//  {
+//    if ( log != null )
+//    {
+//      log.close();
+//      log = null;
+//      return "Logging disabled";
+//    }
+//    else
+//    {
+//      return "Logging is already disabled";
+//    }
 }

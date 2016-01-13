@@ -1,6 +1,8 @@
 package code.hack.src.Files;
 
-import code.hack.src.Files.Exceptions.DuplicateFileException;
+import code.hack.src.Files.exceptions.DuplicateFileException;
+import code.hack.src.application.Application;
+import code.hack.src.network.logging.StoredLog;
 import code.hack.src.network.users.Account;
 
 import java.util.ArrayList;
@@ -29,11 +31,15 @@ public class FolderFile extends File
   public File getFile( final String fileName )
   {
     File theFile = null;
-    for( File file : contents )
+    for ( final Object o : contents )
     {
-      if( file.getName().equals( fileName ) )
+      if ( o instanceof File )
       {
-        theFile = file;
+        final File file = (File) o;
+        if ( file.getName().equals( fileName ) )
+        {
+          theFile = file;
+        }
       }
     }
     return theFile;
@@ -50,11 +56,16 @@ public class FolderFile extends File
 
   public void addFolder( final TextFile textFile ) throws DuplicateFileException
   {
-    if ( getFile( textFile.getName() ) instanceof FolderFile )
+    if ( getFile( textFile.getName() ) instanceof TextFile )
     {
       throw new DuplicateFileException( this, textFile );
     }
     addFile( textFile );
+  }
+
+  public void addLog( final StoredLog storedLog )
+  {
+    addFile( storedLog );
   }
 
   public void addFolder( final ImageFile file ) throws DuplicateFileException
@@ -63,6 +74,11 @@ public class FolderFile extends File
     {
       throw new DuplicateFileException( this, file );
     }
+    addFile( file );
+  }
+
+  public void addFolder( final Application file )
+  {
     addFile( file );
   }
 

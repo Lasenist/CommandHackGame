@@ -3,6 +3,7 @@ package code.hack.src.main;
 import code.hack.src.network.connection.Session;
 import code.hack.src.network.server.Server;
 import code.hack.src.util.NetworkUtil;
+import lib.cliche.src.CLIException;
 
 import java.util.HashMap;
 import java.util.Objects;
@@ -21,8 +22,9 @@ public class NetworkManager
   /*
   * C O N S T R U C T O R
   */
-  public NetworkManager()
+  public NetworkManager( final Server playerServer )
   {
+    servers.put( playerServer.getIp(), playerServer );
     servers.put( "129.4.3.78", new Server( "129.4.3.78", true ) );
     servers.put( "126.1.56.201", new Server( "126.1.56.201", true ) );
     servers.put( "103.1.142.7", new Server( "103.1.142.7" ) );
@@ -31,33 +33,37 @@ public class NetworkManager
   /*
   * M E T H O D S
   */
-  public Session createConnection( final String requestingIp, final String requestedIp )
+  public Session createConnection( final Server requestingServer, final String requestedIp ) throws CLIException
   {
     Session session = null;
-    if ( NetworkUtil.isValidIp( requestedIp ) && !Objects.equals( requestingIp, requestedIp ) )
+    if ( !Objects.equals( requestingServer.getIp(), requestedIp ) )
     {
-      final Server server = servers.get( requestedIp );
+      final Server server = getServer( requestedIp );
       if ( server != null )
       {
-        session = server.connect( requestingIp );
+        session = server.connect( requestingServer );
       }
     }
     return session;
   }
 
-  public Server getServer( final String ip )
+  public Server getServer( final String ip ) throws CLIException
   {
     Server server = null;
     if ( NetworkUtil.isValidIp( ip ) )
     {
       server = servers.get( ip );
+      if ( server == null )
+      {
+        throw CLIException.invalidServer( ip );
+      }
     }
     return server;
   }
 
-  public boolean isProxyEnabled( final String ip )
+  public boolean isProxyEnabled( final String ip ) throws CLIException
   {
-    return servers.get( ip ).isProxyEnabled();
+    return getServer( ip ).isProxyEnabled();
   }
 
 

@@ -28,6 +28,6 @@ public class LoggedInAccount extends Log
   */
   public String getLogMessage()
   {
-    return "The session " + session.getSessionId() + "logged in with account " + account.getUsername();
+    return "The session of " + session.getRequestingIp() + " logged in with account " + account.getUsername();
   }
 }

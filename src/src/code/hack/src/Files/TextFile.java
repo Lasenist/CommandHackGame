@@ -21,7 +21,7 @@ public class TextFile extends File
   public TextFile( final String name, final Account author, final Account lastAuthor, final Date dateCreated, final
   Date dateModified, final String content )
   {
-    super( name + ".txt", author, lastAuthor, dateCreated, dateModified );
+    super( name, author, lastAuthor, dateCreated, dateModified );
     this.content = content;
   }
 
@@ -33,4 +33,9 @@ public class TextFile extends File
     return content;
   }
 
+  @Override
+  public String getName()
+  {
+    return name + ".txt";
+  }
 }

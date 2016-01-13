@@ -2,7 +2,10 @@ package code.hack.src.network.server.handlers;
 
 import code.hack.src.network.connection.Session;
 import lib.cliche.src.Command;
+import lib.cliche.src.Question;
 import lib.cliche.src.Response;
+
+import java.util.ArrayList;
 
 /**
  * Created by Lasen on 02/10/2015.
@@ -37,8 +40,10 @@ public class NoAccountHandler extends CommandHandler
     if ( username == null && password == null )
     {
       response.setResponse( Response.REQUEST_INPUT );
-      response.addToSetters( "setUsername", "Username:" );
-      response.addToSetters( "setPassword", "Password:" );
+      final ArrayList<Question> questions = new ArrayList<>();
+      questions.add( new Question( "setUsername", "Username" ) );
+      questions.add( new Question( "setPassword", "Password" ) );
+      response.addToSetters( questions, "login" );
     }
     else
     {

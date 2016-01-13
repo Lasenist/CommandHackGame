@@ -1,5 +1,7 @@
 package code.hack.src.application;
 
+import code.hack.src.Files.File;
+import code.hack.src.network.users.Account;
 import code.hack.src.util.Fn;
 import lib.cliche.src.CLIException;
 import lib.cliche.src.Shell;
@@ -14,15 +16,14 @@ import java.awt.event.WindowEvent;
  * Created by Lasen on 02/12/15.
  * Base class for applications
  */
-public abstract class Application
+public abstract class Application extends File
 {
   /*
   * V A R I A B L E S
   */
-  final private String name;
   final private String version;
-  final private int fileSize;
   final private int ramSize;
+  boolean running;
 
   final protected Shell shell;
   protected JFrame frame;
@@ -31,13 +32,13 @@ public abstract class Application
   /*
   * C O N S T R U C T O R
   */
-  public Application( final String name, final String version, final int fileSize, final int ramSize, final Shell
-          shell )
+  public Application( final String name, final Account author, final String version, final int fileSize, final int
+          ramSize, final Shell shell )
   {
-    this.name = name;
+    super( name, author, author, null, null ); //TODO: Possibly give dates?
     this.version = version;
-    this.fileSize = fileSize;
     this.ramSize = ramSize;
+    this.fileSize = fileSize;
     this.shell = shell;
   }
 
@@ -60,6 +61,11 @@ public abstract class Application
     return shell;
   }
 
+  public boolean isrunning()
+  {
+    return running;
+  }
+
   /*
   * M E T H O D S
   */
@@ -68,19 +74,12 @@ public abstract class Application
     shell.addMainHandler( this );
     frame = new JFrame( name + " - " + version );
     panel = new JPanel( new GridBagLayout() );
-    frame.add( panel );
+    frame.setAutoRequestFocus( false );
     frame.addWindowListener( new WindowAdapter()
     {
       public void windowClosing( final WindowEvent e )
       {
-        try
-        {
-          close();
-        }
-        catch ( CLIException e1 )
-        {
-          e1.printStackTrace();
-        }
+        close();
       }
     } );
     launch();
@@ -94,6 +93,7 @@ public abstract class Application
   {
     frame.pack();
     frame.setVisible( true );
+    running = true;
   }
 
   /**
@@ -101,10 +101,11 @@ public abstract class Application
    * {@link #init()}
    * @throws CLIException
    */
-  public void close() throws CLIException
+  public void close()
   {
     frame.dispose();
-    shell.removeHandler( this, "" );
+    shell.removeHandler( this );
+    running = false;
   }
 
   /**

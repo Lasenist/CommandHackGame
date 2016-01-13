@@ -58,4 +58,10 @@ public class CLIException extends Exception
   {
     return new CLIException( "Too many invalid input attempts during command " + commandName );
   }
+
+  public static CLIException invalidServer( final String ip )
+  {
+    return new CLIException( "Could not reach any server with the IP address of " + ip );
+  }
+
 }

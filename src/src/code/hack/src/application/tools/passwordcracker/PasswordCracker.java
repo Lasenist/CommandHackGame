@@ -2,7 +2,6 @@ package code.hack.src.application.tools.passwordcracker;
 
 import code.hack.src.application.tools.HackingApplication;
 import code.hack.src.network.server.handlers.NoAccountHandler;
-import lib.cliche.src.CLIException;
 import lib.cliche.src.Shell;
 
 import java.awt.*;
@@ -31,15 +30,15 @@ public class PasswordCracker extends HackingApplication<NoAccountHandler>
   */
   public void launch()
   {
-    frame.setPreferredSize( new Dimension( 350, 200 ) );
     frame.add( panel );
+    frame.setPreferredSize( new Dimension( 350, 200 ) );
     panel.updatePanel();
     shell.addHandlerListener( this );
     checkForHandler();
     super.launch();
   }
 
-  public void close() throws CLIException
+  public void close()
   {
     shell.removeHandlerListener( this );
     super.close();

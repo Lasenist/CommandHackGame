@@ -12,16 +12,21 @@
 
 package lib.cliche.src;
 
+import code.hack.src.application.Application;
 import code.hack.src.listeners.HandlerListener;
+import code.hack.src.main.PlayerServer;
 import code.hack.src.network.connection.Session;
 import code.hack.src.network.server.Server;
 import code.hack.src.network.server.handlers.CommandHandler;
+import code.hack.src.network.server.handlers.ConnectionHandler;
+import code.hack.src.util.FileUtil;
 import code.hack.src.util.Fn;
 import lib.cliche.src.util.ArrayHashMultiMap;
 import lib.cliche.src.util.MultiMap;
 import lib.cliche.src.util.Strings;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -37,12 +42,14 @@ import java.util.List;
 public class Shell
 {
 
+  final ShellFrame shellFrame;
   public static String PROJECT_HOMEPAGE_URL = "http://cliche.sourceforge.net";
 
   private Output output;
   private Input input;
   private String appName;
 
+  private Server playerServer;
   private Session session;
   private ArrayList<Server> proxies;
   private ArrayList<HandlerListener> handlerListeners;
@@ -94,18 +101,20 @@ public class Shell
    * Shell's constructor
    * You probably don't need this one, see methods of the ShellFactory.
    *
-   * @param s            Settings object for the shell instance
    * @param commandTable CommandTable to store commands
    * @param path         Shell's location: list of path elements.
    * @see lib.cliche.src.ShellFactory
    */
-  public Shell( Settings s, CommandTable commandTable, List<String> path )
+  public Shell( CommandTable commandTable, List<String> path )
   {
     this.commandTable = commandTable;
     this.path = path;
     this.proxies = new ArrayList<>();
     this.handlerListeners = new ArrayList<>();
-    setSettings( s );
+    shellFrame = new ShellFrame( this );
+    addAuxHandler( new ConsoleIO( shellFrame ), "!" );
+    playerServer = new PlayerServer( "126.1.21.6", this );
+    addMainHandler( playerServer );
   }
 
   private CommandTable commandTable;
@@ -193,10 +202,10 @@ public class Shell
     addMainHandler( handler, Fn.EMPTY_STRING );
   }
 
-  public void removeHandler( final Object handler, final String prefix ) throws CLIException
+  public void removeHandler( final Object handler )
   {
     allHandlers.remove( handler );
-    removeDeclaredMethods( handler, prefix );
+    removeDeclaredMethods( handler );
 
     for ( final HandlerListener listener : handlerListeners )
     {
@@ -243,7 +252,7 @@ public class Shell
     }
   }
 
-  private void removeDeclaredMethods( final Object handler, final String prefix ) throws CLIException
+  private void removeDeclaredMethods( final Object handler )
   {
     for ( Method m : handler.getClass().getMethods() )
     {
@@ -260,11 +269,11 @@ public class Shell
   /**
    * Returns last thrown exception
    */
-  @Command( description = "Returns last thrown exception" ) // Shell is self-manageable, isn't it?
-  public Throwable getLastException()
-  {
-    return lastException;
-  }
+//  @Command( description = "Returns last thrown exception" ) // Shell is self-manageable, isn't it?
+//  public Throwable getLastException()
+//  {
+//    return lastException;
+//  }
 
   private List<String> path;
 
@@ -286,6 +295,7 @@ public class Shell
   public void setPath( List<String> path )
   {
     this.path = path;
+    shellFrame.updatePath();
   }
 
   /**
@@ -297,6 +307,7 @@ public class Shell
    */
   public void commandLoop() throws IOException
   {
+    shellFrame.initUI();
     for ( Object handler : allHandlers )
     {
       if ( handler instanceof ShellManageable )
@@ -304,28 +315,31 @@ public class Shell
         ( (ShellManageable) handler ).cliEnterLoop();
       }
     }
-    output.output( appName, outputConverter );
     String command = "";
     while ( ! command.trim().equals( "exit" ) )
     {
-      try
-      {
-        command = input.readCommand( path );
-        processLine( command );
-      }
-      catch ( TokenException te )
-      {
-        lastException = te;
-        output.outputException( command, te );
-      }
-      catch ( CLIException clie )
-      {
-        lastException = clie;
-        if ( ! command.trim().equals( "exit" ) )
-        {
-          output.outputHeader( lastException.getMessage() );
-        }
-      }
+      shellFrame.repaint();
+//      try
+//      {
+//        if ( false )
+//        {
+//          command = input.readCommand( path );
+//          processLine( command );
+//        }
+//      }
+//      catch ( TokenException te )
+//      {
+//        lastException = te;
+//        output.outputException( command, te );
+//      }
+//      catch ( CLIException clie )
+//      {
+//        lastException = clie;
+//        if ( ! command.trim().equals( "exit" ) )
+//        {
+//          output.outputHeader( lastException.getMessage() );
+//        }
+//      }
     }
     for ( Object handler : allHandlers )
     {
@@ -338,14 +352,7 @@ public class Shell
 
   private void outputHeader( String header, Object[] parameters )
   {
-    if ( header == null || header.isEmpty() )
-    {
-      output.outputHeader( null );
-    }
-    else
-    {
-      output.outputHeader( String.format( header, parameters ) );
-    }
+    shellFrame.addToOutput( String.format( header, parameters ) );
   }
 
   private static final String HINT_FORMAT = "This is %1$s, running on Cliche Shell\n" +
@@ -359,7 +366,7 @@ public class Shell
    * @throws lib.cliche.src.CLIException This may be TokenException
    * @see lib.cliche.src.Output
    */
-  public void processLine( String line ) throws CLIException
+  public void processLine( String line ) throws CLIException, InvocationTargetException, IllegalAccessException
   {
     if ( line.trim().equals( "?" ) )
     {
@@ -371,18 +378,18 @@ public class Shell
       if ( tokens.size() > 0 )
       {
         String discriminator = tokens.get( 0 ).getString();
-        processCommand( discriminator, tokens, false );
+        processCommand( discriminator, tokens );
       }
     }
   }
 
-  private void processCommand( String discriminator, List<Token> tokens, final boolean superCommands ) throws
-          CLIException
+  private void processCommand( String discriminator, List<Token> tokens ) throws
+          CLIException, InvocationTargetException, IllegalAccessException
   {
     assert discriminator != null;
     assert ! discriminator.equals( "" );
 
-    ShellCommand commandToInvoke = commandTable.lookupCommand( discriminator, tokens, superCommands );
+    ShellCommand commandToInvoke = commandTable.lookupCommand( discriminator, tokens, shellFrame.isAnsweringQuestions() );
 
     Class[] paramClasses = commandToInvoke.getMethod().getParameterTypes();
     Object[] parameters = inputConverter.convertToParameters( tokens, paramClasses,
@@ -403,49 +410,37 @@ public class Shell
           break;
 
         case Response.REQUEST_INPUT:
-
-          for ( InputRequest inputRequest : r.getQuestions() )
-          {
-            int count = 0;
-            int maxTries = 3;
-            boolean retrying = true;
-            while( retrying )
-            {
-              try
-              {
-                processCommand( inputRequest.getCommandName(), requestInput( inputRequest.getQuestion(),
-                      inputRequest.getCommandName() ), true );
-                retrying = false;
-              }
-              catch ( CLIException e )
-              {
-                if (++count == maxTries)
-                {
-                  throw CLIException.tooManyAttempts( discriminator );
-                }
-              }
-            }
-          }
-          processCommand( discriminator, tokens, false );
+          shellFrame.setInputRequest( r.getInputRequest() );
           break;
 
         case Response.UPDATE:
           updateHandlersFromSession();
-          updatePathFromSession();
           break;
       }
 
       if ( r.getMessage() != null )
       {
-        addToOutput( r.getMessage() );
+        addAllToOutput( r.getMessage() );
       }
+    }
+
+    if ( session != null )
+    {
+      updatePathFromSession();
     }
 
     long timeAfter = Calendar.getInstance().getTimeInMillis();
 
     if ( invocationResult != null && ! ( invocationResult instanceof Response ) )
     {
-      output.output( invocationResult, outputConverter );
+      if ( invocationResult instanceof ArrayList )
+      {
+        final ArrayList list = (ArrayList) invocationResult;
+        for ( final Object string : list )
+        {
+          shellFrame.addToOutput( (String) string );
+        }
+      }
     }
     if ( displayTime )
     {
@@ -476,13 +471,13 @@ public class Shell
    *
    * @param displayTime true if do display, false otherwise
    */
-  @Command( description = "Turns command execution time display on and off" )
-  public void setDisplayTime(
-          @Param( name = "do-display-time", description = "true if do display, false otherwise" )
-          boolean displayTime )
-  {
-    this.displayTime = displayTime;
-  }
+//  @Command( description = "Turns command execution time display on and off" )
+//  public void setDisplayTime(
+//          @Param( name = "do-display-time", description = "true if do display, false otherwise" )
+//          boolean displayTime )
+//  {
+//    this.displayTime = displayTime;
+//  }
 
   /**
    * Hint is some text displayed before the command loop and every time user enters "?".
@@ -504,7 +499,16 @@ public class Shell
 
   public void addToOutput( final String value )
   {
-    output.outputHeader( value );
+//    output.outputHeader( value );
+    shellFrame.addToOutput( value );
+  }
+
+  public void addAllToOutput( final ArrayList<String> values )
+  {
+    for ( final String string : values )
+    {
+      shellFrame.addToOutput( string );
+    }
   }
 
   public void addToOutputWithPath( final String value )
@@ -515,20 +519,29 @@ public class Shell
   public void setSession( final Session session )
   {
     this.session = session;
+    shellFrame.getFrame().requestFocus();
     final ArrayList<Server> currentProxies = new ArrayList<>( proxies );
     session.setProxyChain( currentProxies );
     final ArrayList<String> list = new ArrayList<>();
     list.add( session.getRequestedServer().getIp() );
     path = list;
+
+    if ( this.session != null )
+    {
+      final ConnectionHandler connectionHandler = new ConnectionHandler( session );
+      addMainHandler( connectionHandler );
+      session.addHandler( connectionHandler );
+    }
+
     updateHandlersFromSession();
+    updatePathFromSession();
   }
 
   public void clearSession() throws CLIException
   {
-    session.getRequestedServer().disconnect( session );
     for ( Object o : session.getHandlers() )
     {
-      removeHandler( o, "" );
+      removeHandler( o );
     }
     session = null;
   }
@@ -541,7 +554,7 @@ public class Shell
       {
         if( !allHandlers.contains( handler ) )
         {
-          addMainHandler( handler, "" );
+          addMainHandler( handler );
         }
       }
     }
@@ -571,5 +584,62 @@ public class Shell
   public void removeHandlerListener( final HandlerListener listener )
   {
     handlerListeners.remove( listener );
+  }
+
+
+  @Command( description = "Show a list of all applications available to run" )
+  public void run()
+  {
+    final ArrayList<Application> applications = getAllAvailableApplications();
+
+    if ( applications.isEmpty() )
+    {
+      addToOutput( "No applications found" );
+    }
+    else
+    {
+      for ( final Application application : applications )
+      {
+        addToOutput( application.getName() );
+      }
+    }
+  }
+
+  @Command( description = "Attempt to run an application your computer has access to" )
+  public void run( final String applicationName )
+  {
+    boolean applicationFound = false;
+    for ( final Application application : getAllAvailableApplications() )
+    {
+      if ( application.getName().equals( applicationName ) )
+      {
+        applicationFound = true;
+        if ( !application.isrunning() )
+        {
+          application.init();
+          addToOutput( "Attempting to launch application " + application.getName() );
+        }
+        else
+        {
+          addToOutput( application.getName() + " is already running" );
+        }
+      }
+    }
+
+    if ( !applicationFound )
+    {
+      addToOutput( "Application not found" );
+    }
+  }
+
+  private ArrayList<Application> getAllAvailableApplications()
+  {
+    final ArrayList<Application> applications = FileUtil.getAllApplications( playerServer.getBaseFolder() );
+    final Session session = getSession();
+    if ( session != null && session.getAccount() != null )
+    {
+      applications.addAll( FileUtil.getAllApplications( session.getRequestedServer().getBaseFolder() ) );
+    }
+    return applications;
   }
 }

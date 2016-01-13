@@ -1,6 +1,7 @@
 package code.hack.src.application.tools.passwordcracker;
 
 import code.hack.src.network.connection.Session;
+import code.hack.src.network.server.Server;
 import code.hack.src.network.server.handlers.NoAccountHandler;
 import code.hack.src.network.users.Account;
 import code.hack.src.util.Fn;
@@ -87,11 +88,12 @@ public class CrackerPanel extends JPanel
       timer.setInitialDelay( 0 );
 
       final Session session = handler.getSession();
-      final Account account = session.getRequestedServer().getAccount( usernameField.getText() );
+      final Server requestedServer = session.getRequestedServer();
+      final Account account = requestedServer.getAccount( usernameField.getText() );
       if ( account != null )
       {
         timer.start();
-
+        requestedServer.traceSession( session );
       }
     } );
   }
@@ -167,32 +169,44 @@ public class CrackerPanel extends JPanel
     public void actionPerformed( ActionEvent e )
     {
       final Session session = handler.getSession();
-      final String text = usernameField.getText();
-      if ( password == null )
+      if ( session.getRequestedServer().hasSession( session ) )
       {
-        password = session.getRequestedServer().getAccount( text ).getPassword();
-      }
-      final StringBuilder sb = new StringBuilder( password.length() );
-      for ( int i = 0; i < password.length(); i++ )
-      {
-        sb.append( getRandomCharacter() );
-      }
+        final String text = usernameField.getText();
+        if ( password == null )
+        {
+          password = session.getRequestedServer().getAccount( text ).getPassword();
+        }
+        final StringBuilder sb = new StringBuilder( password.length() );
+        for ( int i = 0; i < password.length(); i++ )
+        {
+          sb.append( getRandomCharacter() );
+        }
 
-      if ( timePassed < 5000 )
-      {
-        passwordField.setText( sb.toString() );
-        timePassed = timePassed + 100;
+        if ( timePassed < 5000 )
+        {
+          passwordField.setText( sb.toString() );
+          timePassed = timePassed + 100;
+        }
+        else
+        {
+          final Shell shell = passwordCracker.getShell();
+          passwordField.setText( password );
+          timer.stop();
+          timePassed = 0;
+          password = null;
+          session.getRequestedServer().login( session, text, passwordField.getText() );
+          shell.updateHandlersFromSession();
+          shell.addToOutputWithPath( "\n" + "Account cracked and logged into." );
+        }
       }
       else
       {
-        final Shell shell = passwordCracker.getShell();
-        passwordField.setText( password );
         timer.stop();
         timePassed = 0;
         password = null;
-        session.getRequestedServer().login( session, text, passwordField.getText() );
-        shell.updateHandlersFromSession();
-        shell.addToOutputWithPath( "\n" + "Account cracked and logged into." );
+        usernameField.setText( Fn.EMPTY_STRING );
+        passwordField.setText( Fn.EMPTY_STRING );
+        passwordCracker.setHandler( null );
       }
     }
 

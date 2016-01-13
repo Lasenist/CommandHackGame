@@ -3,6 +3,7 @@ package code.hack.src.network.server;
 import code.hack.src.Files.BaseFolder;
 import code.hack.src.Files.File;
 import code.hack.src.Files.FolderFile;
+import code.hack.src.Files.exceptions.DuplicateFileException;
 import code.hack.src.network.connection.Session;
 import code.hack.src.network.logging.*;
 import code.hack.src.network.server.enums.ServerStateEnum;
@@ -11,8 +12,10 @@ import code.hack.src.network.server.handlers.FileManagementHandler;
 import code.hack.src.network.server.handlers.NoAccountHandler;
 import code.hack.src.network.users.Account;
 import code.hack.src.util.FileUtil;
+import code.hack.src.util.Fn;
 import lib.cliche.src.Response;
 
+import javax.swing.*;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -27,21 +30,41 @@ public class Server
   * V A R I A B L E S
   */
   protected String ip;
+  protected String description;
   protected boolean online;
   protected ServerStateEnum serverState;
-  protected ArrayList<StoredLog> logs = new ArrayList<>();
+  protected FolderFile logs;
   protected ArrayList<Account> accounts = new ArrayList<>();
   protected ArrayList<Session> sessions = new ArrayList<>();
-  protected BaseFolder folders = new BaseFolder( "C" );
+  protected BaseFolder baseFolder = new BaseFolder( "C:" );
   protected boolean proxyEnabled;
+
+  protected final Account autoLogger = new Account( "autoLogger" );
 
   /*
   * C O N S T R U C T O R
   */
-  public Server( final String ip, final boolean proxyEnabled )
+  public Server( final String ip, final String description, final boolean proxyEnabled )
   {
     this.ip = ip;
+    this.description = description;
     this.proxyEnabled = proxyEnabled;
+    final Account admin = new Account( "admin", "password" );
+    accounts.add( admin );
+    logs = new FolderFile( "logs", admin, admin, new Date(), new Date() );
+    try
+    {
+      baseFolder.addFolder( logs );
+    }
+    catch ( DuplicateFileException e )
+    {
+      e.printStackTrace();
+    }
+  }
+
+  public Server( final String ip, final boolean proxyEnabled )
+  {
+    this( ip, Fn.EMPTY_STRING, proxyEnabled );
   }
 
   public Server( final String ip )
@@ -62,38 +85,49 @@ public class Server
     return proxyEnabled;
   }
 
-  /*
-   * M E T H O D S
-   */
-  public Session connect( final String requestingIp )
+  public BaseFolder getBaseFolder()
   {
-    final Session newSession = new Session( requestingIp, this );
+    return baseFolder;
+  }
+
+  public String getDescription()
+  {
+    return description;
+  }
+
+  /*
+     * M E T H O D S
+     */
+  public Session connect( final Server requestingServer )
+  {
+    final Session newSession = new Session( requestingServer, this );
+    newSession.addHandler( new NoAccountHandler( newSession ) );
     addSession( newSession );
+    requestingServer.addSession( newSession );
     return newSession;
   }
 
-  public void disconnect( final Session session )
+  public void disconnect( final Session session, final boolean forced )
   {
-    removeSession( session );
+    removeSession( session, forced );
   }
 
   private void addSession( final Session session )
   {
     addLog( new SessionCreated( session ) );
-    session.addHandler( new NoAccountHandler( session ) );
     sessions.add( session );
   }
 
-  private void removeSession( final Session session )
+  private void removeSession( final Session session, final boolean forced )
   {
     sessions.remove( session );
-    addLog( new EndedSession( session ) );
+    addLog( new EndedSession( session, forced ) );
   }
 
   private void addLog( final Log log )
   {
     final String logPrefix = "[ " + new SimpleDateFormat( "HH:mm" ).format( new Date() ) + " ]: ";
-    logs.add( new StoredLog( log, logPrefix + log.getLogMessage() ) );
+    logs.addLog( new StoredLog( log, logPrefix + log.getLogMessage(), autoLogger ) );
   }
 
   public ArrayList<CommandHandler> getHandlers( final Session session )
@@ -148,24 +182,30 @@ public class Server
   {
     final int maxAttempts = 3;
     int count = 0;
-    for ( StoredLog log : logs )
+    for ( File file : logs.getContents() )
     {
-      if ( log.getLog() instanceof LoginAttempt )
+      if ( file instanceof StoredLog )
       {
-        final LoginAttempt loginAttempt = (LoginAttempt) log.getLog();
-
-        if ( ! loginAttempt.isSuccessful() && loginAttempt.getSession() == session )
+        final StoredLog log = (StoredLog) file;
+        if ( log.getLog() instanceof LoginAttempt )
         {
-          count++;
+          final LoginAttempt loginAttempt = (LoginAttempt) log.getLog();
+
+          if ( ! loginAttempt.isSuccessful() && loginAttempt.getSession() == session )
+          {
+            count++;
+          }
         }
+
       }
+
     }
     return count >= maxAttempts;
   }
 
   private FolderFile getFolder( final String path )
   {
-    return FileUtil.getFolderFromPath( folders, path );
+    return FileUtil.getFolderFromPath( baseFolder, path );
   }
 
   public boolean hasAccounts()
@@ -175,20 +215,15 @@ public class Server
 
   public void traceSession( final Session session )
   {
-    boolean tracking = true;
-    while( sessions.contains( session ) && tracking )
-    {
-      try
-      {
-        Thread.sleep( session.getProxies().size() * 10000 );
-        disconnect( session );
-        tracking = false;
-      }
-      catch ( InterruptedException e )
-      {
-        e.printStackTrace();
-      }
-    }
+    final ActiveTracerActionListener tracerActionListener = new ActiveTracerActionListener( session );
+    final Timer traceTimer = new Timer( session.getProxies().size() * 10000, tracerActionListener );
+    tracerActionListener.setTimer( traceTimer );
+    traceTimer.start();
+  }
+
+  public boolean hasSession( final Session session )
+  {
+    return sessions.contains( session );
   }
 
   /*
@@ -209,6 +244,7 @@ public class Server
         response.setResponse( Response.UPDATE );
         response.setMessage( "Logged in with account " + account.getUsername() );
         session.addHandler( new FileManagementHandler( session ) );
+        session.addToCurrentPath( getBaseFolder().getName() );
       }
       else
       {
@@ -257,14 +293,38 @@ public class Server
   public Response ls( final Session session )
   {
     Response response = new Response();
-    StringBuilder sb = new StringBuilder();
+    final ArrayList<String> output = new ArrayList<>();
 
-    for (  File file : FileUtil.getFolderFromPath( folders, session.getCurrentPath() ).getContents() )
+    final FolderFile files = FileUtil.getFolderFromPath( baseFolder, session.getCurrentPath() );
+
+    if ( files != null )
     {
-      sb.append( file.getName() ).append( "\n" );
+      for (  File file : files.getContents() )
+      {
+        if ( file instanceof FolderFile )
+        {
+          output.add( " [FOLDER]    " + file.getName() );
+        }
+        else
+        {
+          output.add( "    [LOG]   " + file.getName() );
+        }
+
+      }
     }
-    response.setMessage( sb.toString() );
+    else
+    {
+      output.add( "-- Empty Folder --" );
+    }
+
+    response.setMessage( output );
     return response;
   }
 
+  //Used by the disconnect command
+  public void endSession( final Session session )
+  {
+    session.getRequestingServer().disconnect( session, false );
+    session.getRequestedServer().disconnect( session, false );
+  }
 }
